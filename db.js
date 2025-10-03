@@ -143,6 +143,7 @@ const DB = {
                 name: 'Shree Rice Mill',
                 village: 'Panipat',
                 phone: '9876543220',
+                pointOfContact: 'Rajesh Kumar',
                 commissionDefault: 'FARMER',
                 commissionSplitPercent: 50
             });
@@ -150,6 +151,7 @@ const DB = {
                 name: 'Modern Rice Mill',
                 village: 'Karnal',
                 phone: '9876543221',
+                pointOfContact: 'Amit Sharma',
                 commissionDefault: 'MILL',
                 commissionSplitPercent: 50
             });

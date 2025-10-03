@@ -138,22 +138,52 @@ function showDashboard() {
 }
 
 function showLoads() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
     document.getElementById('content').innerHTML = `
         <div class="card">
             <div class="card-header">
                 Loads Management
                 <button class="btn btn-primary" onclick="showNewLoadForm()" style="float: right;">+ New Load</button>
             </div>
-            ${renderLoadsTable([...AppState.loads].reverse())}
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="loads-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="loads-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterLoads()">Filter</button>
+                    <button class="btn" onclick="clearLoadsFilter()" style="margin-left: 0.5rem;">Clear</button>
+                </div>
+            </div>
+            <div id="loads-table-container">
+                ${renderLoadsTable([...AppState.loads].reverse())}
+            </div>
         </div>
     `;
+}
+
+function filterLoads() {
+    const fromDate = document.getElementById('loads-from-date').value;
+    const toDate = document.getElementById('loads-to-date').value;
+    const filteredLoads = AppState.loads.filter(l => l.date >= fromDate && l.date <= toDate);
+    document.getElementById('loads-table-container').innerHTML = renderLoadsTable([...filteredLoads].reverse());
+}
+
+function clearLoadsFilter() {
+    document.getElementById('loads-table-container').innerHTML = renderLoadsTable([...AppState.loads].reverse());
 }
 
 function renderLoadsTable(loads) {
     if (loads.length === 0) {
         return '<p>No loads yet. Click "New Load" to add one.</p>';
     }
-    
+
     return `
         <table>
             <thead>
@@ -161,6 +191,7 @@ function renderLoadsTable(loads) {
                     <th>Date</th>
                     <th>Farmer</th>
                     <th>Mill</th>
+                    <th>Mill POC</th>
                     <th>Case</th>
                     <th>Gross Kg</th>
                     <th>Net Kg</th>
@@ -174,12 +205,13 @@ function renderLoadsTable(loads) {
                     const farmer = AppState.farmers.find(f => f.id === load.farmerId);
                     const mill = AppState.mills.find(m => m.id === load.millId);
                     const computed = load.computed || {};
-                    
+
                     return `
                         <tr>
                             <td>${load.date}</td>
                             <td>${farmer?.name || 'Unknown'}</td>
                             <td>${mill?.name || 'Unknown'}</td>
+                            <td>${mill?.pointOfContact || 'N/A'}</td>
                             <td>${load.case}</td>
                             <td>${CalcEngine.formatNumber(load.grossKg)}</td>
                             <td>${CalcEngine.formatNumber(computed.netKg)}</td>
@@ -217,10 +249,15 @@ async function showNewLoadForm() {
             
             <div class="form-group">
                 <label>Mill</label>
-                <select name="millId" required onchange="updateCommissionPolicy(this.value)">
+                <select name="millId" required onchange="updateCommissionPolicy(this.value); updateMillPOC(this.value)">
                     <option value="">Select Mill</option>
                     ${AppState.mills.map(m => `<option value="${m.id}">${m.name} - ${m.village}</option>`).join('')}
                 </select>
+            </div>
+
+            <div class="form-group">
+                <label>Mill Point of Contact</label>
+                <input type="text" id="mill-poc-display" readonly style="background-color: #f0f0f0;">
             </div>
             
             <div class="form-group">
@@ -347,19 +384,31 @@ async function showNewLoadForm() {
 
 function updateCommissionPolicy(millId) {
     if (!millId) return;
-    
+
     const mill = AppState.mills.find(m => m.id == millId);
     if (mill && mill.commissionDefault) {
         const policySelect = document.querySelector('[name="policy"]');
         const splitPctInput = document.querySelector('[name="splitPct"]');
-        
+
         policySelect.value = mill.commissionDefault;
         if (mill.commissionSplitPercent) {
             splitPctInput.value = mill.commissionSplitPercent;
         }
-        
+
         toggleSplitPct();
         recalculateLoad();
+    }
+}
+
+function updateMillPOC(millId) {
+    if (!millId) {
+        document.getElementById('mill-poc-display').value = '';
+        return;
+    }
+
+    const mill = AppState.mills.find(m => m.id == millId);
+    if (mill) {
+        document.getElementById('mill-poc-display').value = mill.pointOfContact || 'N/A';
     }
 }
 
@@ -480,103 +529,219 @@ function closeModal() {
 }
 
 function showFarmers() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
     document.getElementById('content').innerHTML = `
         <div class="card">
             <div class="card-header">Farmers</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Village</th>
-                        <th>Phone</th>
-                        <th>Outstanding</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${AppState.farmers.map(farmer => {
-                        const farmerLoads = AppState.loads.filter(l => l.farmerId === farmer.id && l.farmerPaymentStatus !== 'Complete');
-                        const outstanding = farmerLoads.reduce((sum, load) => sum + (load.computed?.farmerPayable || 0), 0);
-                        
-                        return `
-                            <tr>
-                                <td>${farmer.name}</td>
-                                <td>${farmer.village}</td>
-                                <td>${farmer.phone}</td>
-                                <td>${CalcEngine.formatCurrency(outstanding)}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
-            </table>
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="farmers-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="farmers-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterFarmers()">Filter</button>
+                    <button class="btn" onclick="clearFarmersFilter()" style="margin-left: 0.5rem;">Clear</button>
+                </div>
+            </div>
+            <div id="farmers-table-container">
+                ${renderFarmersTable(AppState.farmers, AppState.loads)}
+            </div>
         </div>
     `;
+}
+
+function renderFarmersTable(farmers, loads) {
+    return `
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Village</th>
+                    <th>Phone</th>
+                    <th>Total Loads</th>
+                    <th>Outstanding</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${farmers.map(farmer => {
+                    const farmerLoads = loads.filter(l => l.farmerId === farmer.id && l.farmerPaymentStatus !== 'Complete');
+                    const allFarmerLoads = loads.filter(l => l.farmerId === farmer.id);
+                    const outstanding = farmerLoads.reduce((sum, load) => sum + (load.computed?.farmerPayable || 0), 0);
+
+                    return `
+                        <tr>
+                            <td>${farmer.name}</td>
+                            <td>${farmer.village}</td>
+                            <td>${farmer.phone}</td>
+                            <td>${allFarmerLoads.length}</td>
+                            <td>${CalcEngine.formatCurrency(outstanding)}</td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function filterFarmers() {
+    const fromDate = document.getElementById('farmers-from-date').value;
+    const toDate = document.getElementById('farmers-to-date').value;
+    const filteredLoads = AppState.loads.filter(l => l.date >= fromDate && l.date <= toDate);
+    document.getElementById('farmers-table-container').innerHTML = renderFarmersTable(AppState.farmers, filteredLoads);
+}
+
+function clearFarmersFilter() {
+    document.getElementById('farmers-table-container').innerHTML = renderFarmersTable(AppState.farmers, AppState.loads);
 }
 
 function showMills() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
     document.getElementById('content').innerHTML = `
         <div class="card">
             <div class="card-header">Mills</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Village</th>
-                        <th>Phone</th>
-                        <th>Outstanding</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${AppState.mills.map(mill => {
-                        const millLoads = AppState.loads.filter(l => l.millId === mill.id && l.millPaymentStatus !== 'Complete');
-                        const outstanding = millLoads.reduce((sum, load) => sum + (load.computed?.millReceivable || 0), 0);
-                        
-                        return `
-                            <tr>
-                                <td>${mill.name}</td>
-                                <td>${mill.village}</td>
-                                <td>${mill.phone}</td>
-                                <td>${CalcEngine.formatCurrency(outstanding)}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
-            </table>
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="mills-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="mills-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterMills()">Filter</button>
+                    <button class="btn" onclick="clearMillsFilter()" style="margin-left: 0.5rem;">Clear</button>
+                </div>
+            </div>
+            <div id="mills-table-container">
+                ${renderMillsTable(AppState.mills, AppState.loads)}
+            </div>
         </div>
     `;
 }
 
+function renderMillsTable(mills, loads) {
+    return `
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Village</th>
+                    <th>Phone</th>
+                    <th>Point of Contact</th>
+                    <th>Total Loads</th>
+                    <th>Outstanding</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${mills.map(mill => {
+                    const millLoads = loads.filter(l => l.millId === mill.id && l.millPaymentStatus !== 'Complete');
+                    const allMillLoads = loads.filter(l => l.millId === mill.id);
+                    const outstanding = millLoads.reduce((sum, load) => sum + (load.computed?.millReceivable || 0), 0);
+
+                    return `
+                        <tr>
+                            <td>${mill.name}</td>
+                            <td>${mill.village}</td>
+                            <td>${mill.phone}</td>
+                            <td>${mill.pointOfContact || 'N/A'}</td>
+                            <td>${allMillLoads.length}</td>
+                            <td>${CalcEngine.formatCurrency(outstanding)}</td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function filterMills() {
+    const fromDate = document.getElementById('mills-from-date').value;
+    const toDate = document.getElementById('mills-to-date').value;
+    const filteredLoads = AppState.loads.filter(l => l.date >= fromDate && l.date <= toDate);
+    document.getElementById('mills-table-container').innerHTML = renderMillsTable(AppState.mills, filteredLoads);
+}
+
+function clearMillsFilter() {
+    document.getElementById('mills-table-container').innerHTML = renderMillsTable(AppState.mills, AppState.loads);
+}
+
 function showAdvances() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
     document.getElementById('content').innerHTML = `
         <div class="card">
             <div class="card-header">
                 Advances
                 <button class="btn btn-primary" onclick="showNewAdvanceForm()" style="float: right;">+ New Advance</button>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Farmer</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${AppState.advances.map(advance => {
-                        const farmer = AppState.farmers.find(f => f.id === advance.farmerId);
-                        return `
-                            <tr>
-                                <td>${advance.date}</td>
-                                <td>${farmer?.name || 'Unknown'}</td>
-                                <td>${CalcEngine.formatCurrency(advance.amount)}</td>
-                                <td><span class="badge badge-warning">Active</span></td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
-            </table>
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="advances-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="advances-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterAdvances()">Filter</button>
+                    <button class="btn" onclick="clearAdvancesFilter()" style="margin-left: 0.5rem;">Clear</button>
+                </div>
+            </div>
+            <div id="advances-table-container">
+                ${renderAdvancesTable(AppState.advances)}
+            </div>
         </div>
     `;
+}
+
+function renderAdvancesTable(advances) {
+    return `
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Farmer</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${advances.map(advance => {
+                    const farmer = AppState.farmers.find(f => f.id === advance.farmerId);
+                    return `
+                        <tr>
+                            <td>${advance.date}</td>
+                            <td>${farmer?.name || 'Unknown'}</td>
+                            <td>${CalcEngine.formatCurrency(advance.amount)}</td>
+                            <td><span class="badge badge-warning">Active</span></td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function filterAdvances() {
+    const fromDate = document.getElementById('advances-from-date').value;
+    const toDate = document.getElementById('advances-to-date').value;
+    const filteredAdvances = AppState.advances.filter(a => a.date >= fromDate && a.date <= toDate);
+    document.getElementById('advances-table-container').innerHTML = renderAdvancesTable(filteredAdvances);
+}
+
+function clearAdvancesFilter() {
+    document.getElementById('advances-table-container').innerHTML = renderAdvancesTable(AppState.advances);
 }
 
 async function showNewAdvanceForm() {
@@ -625,65 +790,310 @@ async function saveAdvance(event) {
 }
 
 function showReceipts() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
     document.getElementById('content').innerHTML = `
         <div class="card">
-            <div class="card-header">Mill Receipts</div>
-            <p>Receipt management coming soon. Track mill payments and allocations.</p>
+            <div class="card-header">Mill Payments</div>
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="receipts-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="receipts-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterReceipts()">Filter</button>
+                    <button class="btn" onclick="clearReceiptsFilter()" style="margin-left: 0.5rem;">Clear</button>
+                </div>
+            </div>
+            <div id="receipts-table-container">
+                ${renderReceiptsTable(AppState.loads)}
+            </div>
         </div>
     `;
+}
+
+function renderReceiptsTable(loads) {
+    const pendingLoads = loads.filter(l => l.millPaymentStatus !== 'Complete');
+    const completedLoads = loads.filter(l => l.millPaymentStatus === 'Complete');
+
+    const totalPending = pendingLoads.reduce((sum, load) => sum + (load.computed?.millReceivable || 0), 0);
+    const totalCompleted = completedLoads.reduce((sum, load) => sum + (load.computed?.millReceivable || 0), 0);
+
+    return `
+        <div style="margin-bottom: 1.5rem;">
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Pending Payments</div>
+                    <div class="stat-value">${CalcEngine.formatCurrency(totalPending)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Completed Payments</div>
+                    <div class="stat-value">${CalcEngine.formatCurrency(totalCompleted)}</div>
+                </div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Mill</th>
+                    <th>Point of Contact</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${loads.map(load => {
+                    const mill = AppState.mills.find(m => m.id === load.millId);
+                    return `
+                        <tr>
+                            <td>${load.date}</td>
+                            <td>${mill?.name || 'Unknown'}</td>
+                            <td>${mill?.pointOfContact || 'N/A'}</td>
+                            <td>${CalcEngine.formatCurrency(load.computed?.millReceivable || 0)}</td>
+                            <td><span class="badge badge-${load.millPaymentStatus === 'Complete' ? 'success' : 'warning'}">${load.millPaymentStatus}</span></td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function filterReceipts() {
+    const fromDate = document.getElementById('receipts-from-date').value;
+    const toDate = document.getElementById('receipts-to-date').value;
+    const filteredLoads = AppState.loads.filter(l => l.date >= fromDate && l.date <= toDate);
+    document.getElementById('receipts-table-container').innerHTML = renderReceiptsTable(filteredLoads);
+}
+
+function clearReceiptsFilter() {
+    document.getElementById('receipts-table-container').innerHTML = renderReceiptsTable(AppState.loads);
 }
 
 function showPayouts() {
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
     document.getElementById('content').innerHTML = `
         <div class="card">
             <div class="card-header">Farmer Payouts</div>
-            <p>Payout management coming soon. Record farmer payments with invoice generation.</p>
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="payouts-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="payouts-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterPayouts()">Filter</button>
+                    <button class="btn" onclick="clearPayoutsFilter()" style="margin-left: 0.5rem;">Clear</button>
+                </div>
+            </div>
+            <div id="payouts-table-container">
+                ${renderPayoutsTable(AppState.loads)}
+            </div>
         </div>
     `;
 }
 
+function renderPayoutsTable(loads) {
+    const pendingLoads = loads.filter(l => l.farmerPaymentStatus !== 'Complete');
+    const completedLoads = loads.filter(l => l.farmerPaymentStatus === 'Complete');
+
+    const totalPending = pendingLoads.reduce((sum, load) => sum + (load.computed?.farmerPayable || 0), 0);
+    const totalCompleted = completedLoads.reduce((sum, load) => sum + (load.computed?.farmerPayable || 0), 0);
+
+    return `
+        <div style="margin-bottom: 1.5rem;">
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Pending Payouts</div>
+                    <div class="stat-value">${CalcEngine.formatCurrency(totalPending)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Completed Payouts</div>
+                    <div class="stat-value">${CalcEngine.formatCurrency(totalCompleted)}</div>
+                </div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Farmer</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${loads.map(load => {
+                    const farmer = AppState.farmers.find(f => f.id === load.farmerId);
+                    return `
+                        <tr>
+                            <td>${load.date}</td>
+                            <td>${farmer?.name || 'Unknown'}</td>
+                            <td>${CalcEngine.formatCurrency(load.computed?.farmerPayable || 0)}</td>
+                            <td><span class="badge badge-${load.farmerPaymentStatus === 'Complete' ? 'success' : 'warning'}">${load.farmerPaymentStatus}</span></td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function filterPayouts() {
+    const fromDate = document.getElementById('payouts-from-date').value;
+    const toDate = document.getElementById('payouts-to-date').value;
+    const filteredLoads = AppState.loads.filter(l => l.date >= fromDate && l.date <= toDate);
+    document.getElementById('payouts-table-container').innerHTML = renderPayoutsTable(filteredLoads);
+}
+
+function clearPayoutsFilter() {
+    document.getElementById('payouts-table-container').innerHTML = renderPayoutsTable(AppState.loads);
+}
+
 function showReports() {
-    const month = new Date().toISOString().slice(0, 7);
-    const monthLoads = AppState.loads.filter(l => l.date.startsWith(month));
-    
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date().toISOString().slice(0, 8) + '01';
+
+    document.getElementById('content').innerHTML = `
+        <div class="card">
+            <div class="card-header">Reports</div>
+            <div class="form-group" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" id="report-from-date" value="${firstDayOfMonth}">
+                </div>
+                <div>
+                    <label>To Date</label>
+                    <input type="date" id="report-to-date" value="${today}">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="filterReports()">Generate Report</button>
+                </div>
+            </div>
+            <div id="report-results"></div>
+        </div>
+    `;
+
+    filterReports();
+}
+
+function filterReports() {
+    const fromDate = document.getElementById('report-from-date').value;
+    const toDate = document.getElementById('report-to-date').value;
+
+    const filteredLoads = AppState.loads.filter(l => l.date >= fromDate && l.date <= toDate);
+
     let totalCommission = 0;
     let totalFinanceCharges = 0;
     let totalCompanyExpenses = 0;
-    
-    monthLoads.forEach(load => {
+    let totalMillReceivable = 0;
+    let totalFarmerPayable = 0;
+    let totalGrossKg = 0;
+    let totalNetKg = 0;
+
+    filteredLoads.forEach(load => {
         const computed = load.computed || {};
         totalCommission += computed.commissionAmount || 0;
         totalFinanceCharges += computed.financeChargesPerLoad || 0;
         totalCompanyExpenses += computed.companyExpensesTotal || 0;
+        totalMillReceivable += computed.millReceivable || 0;
+        totalFarmerPayable += computed.farmerPayable || 0;
+        totalGrossKg += load.grossKg || 0;
+        totalNetKg += computed.netKg || 0;
     });
-    
+
     const profit = totalCommission + totalFinanceCharges - totalCompanyExpenses;
-    
-    document.getElementById('content').innerHTML = `
-        <div class="card">
-            <div class="card-header">Monthly Report - ${month}</div>
-            <div class="dashboard-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Loads</div>
-                    <div class="stat-value">${monthLoads.length}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Commission Income</div>
-                    <div class="stat-value">${CalcEngine.formatCurrency(totalCommission)}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Finance Charges</div>
-                    <div class="stat-value">${CalcEngine.formatCurrency(totalFinanceCharges)}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Company Expenses</div>
-                    <div class="stat-value">${CalcEngine.formatCurrency(totalCompanyExpenses)}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Approx. Profit</div>
-                    <div class="stat-value">${CalcEngine.formatCurrency(profit)}</div>
-                </div>
+
+    // Calculate pending amounts
+    let pendingFromMills = 0;
+    let completedFromMills = 0;
+    let pendingToFarmers = 0;
+    let completedToFarmers = 0;
+
+    filteredLoads.forEach(load => {
+        const computed = load.computed || {};
+        if (load.millPaymentStatus !== 'Complete') {
+            pendingFromMills += computed.millReceivable || 0;
+        } else {
+            completedFromMills += computed.millReceivable || 0;
+        }
+        if (load.farmerPaymentStatus !== 'Complete') {
+            pendingToFarmers += computed.farmerPayable || 0;
+        } else {
+            completedToFarmers += computed.farmerPayable || 0;
+        }
+    });
+
+    document.getElementById('report-results').innerHTML = `
+        <div class="dashboard-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Loads</div>
+                <div class="stat-value">${filteredLoads.length}</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Gross Weight</div>
+                <div class="stat-value">${CalcEngine.formatNumber(totalGrossKg)} kg</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Net Weight</div>
+                <div class="stat-value">${CalcEngine.formatNumber(totalNetKg)} kg</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Commission Income</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(totalCommission)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Finance Charges</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(totalFinanceCharges)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Company Expenses</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(totalCompanyExpenses)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Net Profit</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(profit)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Mill Receivable</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(totalMillReceivable)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pending from Mills</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(pendingFromMills)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Received from Mills</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(completedFromMills)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Farmer Payable</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(totalFarmerPayable)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pending to Farmers</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(pendingToFarmers)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Paid to Farmers</div>
+                <div class="stat-value">${CalcEngine.formatCurrency(completedToFarmers)}</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem;">
+            <h3>Load Details</h3>
+            ${renderLoadsTable(filteredLoads.reverse())}
         </div>
     `;
 }
