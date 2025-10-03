@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Complete Farmer-Mill Ledger Management System">
+    <title>Rice Trade Ledger</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="header-left">
+                <h1>🌾 Rice Trade Ledger</h1>
+                <span id="org-name" class="org-name"></span>
+            </div>
+            <div class="header-right">
+                <button id="backup-btn" class="btn-icon" title="Backup Database">💾</button>
+                <button id="restore-btn" class="btn-icon" title="Restore Database">📥</button>
+            </div>
+        </header>
+
+        <nav id="tabs">
+            <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
+            <button class="tab" data-tab="loads">📦 Loads</button>
+            <button class="tab" data-tab="farmers">👨‍🌾 Farmers</button>
+            <button class="tab" data-tab="mills">🏭 Mills</button>
+            <button class="tab" data-tab="vehicles">🚚 Vehicles</button>
+            <button class="tab" data-tab="mill-payments">💰 Mill Payments</button>
+            <button class="tab" data-tab="farmer-payouts">💸 Farmer Payouts</button>
+            <button class="tab" data-tab="master-data">📋 Master Data</button>
+            <button class="tab" data-tab="reports">📈 Reports</button>
+            <button class="tab" data-tab="settings">⚙️ Settings</button>
+        </nav>
+
+        <main id="content">
+            <!-- Dynamic content will be loaded here -->
+        </main>
+
+        <!-- Modal for forms -->
+        <div id="modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div id="modal-body"></div>
+            </div>
+        </div>
+
+        <!-- Toast notifications -->
+        <div id="toast-container"></div>
+    </div>
+
+    <script src="src/calcEngine.js"></script>
+    <script src="src/utils.js"></script>
+    <script src="src/db.js"></script>
+    <script src="src/farmers.js"></script>
+    <script src="src/mills.js"></script>
+    <script src="src/mills-ledger.js"></script>
+    <script src="src/vehicles.js"></script>
+    <script src="src/loads-form.js"></script>
+    <script src="src/loads.js"></script>
+    <script src="src/payments.js"></script>
+    <script src="src/master-data.js"></script>
+    <script src="src/reports.js"></script>
+    <script src="src/app.js"></script>
+    <script src="generate-dummy-data.js"></script>
+</body>
+</html>

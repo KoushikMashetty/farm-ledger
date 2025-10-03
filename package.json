@@ -1,0 +1,16 @@
+{
+  "name": "rice-trade-ledger",
+  "version": "1.0.0",
+  "description": "Complete Farmer-Mill Ledger Management System",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server -p 8080 -o",
+    "dev": "http-server -p 8080 -o"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "author": "Rice Trade Solutions",
+  "license": "MIT"
+}
