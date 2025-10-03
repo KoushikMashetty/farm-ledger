@@ -1,6 +1,6 @@
 const DB = {
     dbName: 'RiceTradeDB',
-    version: 1,
+    version: 2,
     db: null,
 
     async init() {
